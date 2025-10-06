@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>📅 ระบบบันทึก OT รายเดือน (ตัดรอบ 20-19)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Prompt:wght@400;600&display=swap');
+  body {
+    font-family: 'Prompt', sans-serif;
+    background: #e9f5ee;
+    margin: 0;
+  }
+
+  header {
+    background: linear-gradient(120deg, #4caf50, #66bb6a);
+    color: white;
+    padding: 20px;
+    text-align: center;
+    font-size: 22px;
+    font-weight: 600;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  }
+
+  .container {
+    max-width: 850px;
+    margin: 25px auto;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    padding: 25px;
+  }
+
+  .inputs {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+
+  label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  input {
+    padding: 8px;
+    width: 160px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    text-align: center;
+  }
+
+  .calendar {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .weekday {
+    text-align: center;
+    font-weight: 600;
+    color: #388e3c;
+    background: #f1f8e9;
+    padding: 8px 0;
+    border-radius: 8px;
+  }
+
+  .day {
+    text-align: center;
+    padding: 10px;
+    border-radius: 10px;
+    background: #f8f8f8;
+    cursor: pointer;
+    transition: 0.25s;
+  }
+
+  .day:hover {
+    background: #c8e6c9;
+  }
+
+  .day.ot {
+    background: #81c784;
+    color: white;
+    font-weight: bold;
+  }
+
+  .day.sat {
+    color: #1976d2;
+  }
+
+  .day.sun {
+    color: #d32f2f;
+  }
+
+  .month-nav {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .calendar-header {
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .summary {
+    margin-top: 25px;
+    background: #e8f5e9;
+    border-radius: 10px;
+    padding: 15px;
+    text-align: center;
+  }
+
+  .summary p {
+    margin: 6px 0;
+    font-size: 16px;
+  }
+
+  button {
+    background: #4caf50;
+    border: none;
+    color: white;
+    padding: 8px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: 0.25s;
+    font-size: 15px;
+  }
+
+  button:hover {
+    background: #43a047;
+  }
+
+  @media(max-width: 600px) {
+    .calendar {
+      gap: 4px;
+    }
+    .day {
+      padding: 8px;
+      font-size: 13px;
+    }
+    .weekday {
+      font-size: 13px;
+      padding: 6px 0;
+    }
+  }
+</style>
+</head>
+<body>
+
+<header>📅 ระบบบันทึก OT รายเดือน (ตัดรอบ 20 - 19)</header>
+
+<div class="container">
+  <div class="inputs">
+    <div>
+      <label>💰 เงินเดือนพื้นฐาน (บาท/เดือน)</label>
+      <input type="number" id="baseSalary" placeholder="เช่น 15000">
+    </div>
+    <div>
+      <label>⏰ ชั่วโมง OT ต่อวัน</label>
+      <input type="number" id="otHours" value="2.5" step="0.5">
+    </div>
+  </div>
+
+  <div class="month-nav">
+    <button onclick="changePeriod(-1)">◀ รอบก่อนหน้า</button>
+    <div id="monthLabel" class="calendar-header"></div>
+    <button onclick="changePeriod(1)">รอบถัดไป ▶</button>
+  </div>
+
+  <div id="calendar" class="calendar"></div>
+
+  <div class="summary">
+    <p>จำนวนวันทำ OT: <b><span id="otDays">0</span> วัน</b></p>
+    <p>ค่า OT ต่อวัน: <b><span id="otRate">0</span> บาท</b></p>
+    <p>เงินเดือนรวม: <b><span id="totalSalary">0</span> บาท</b></p>
+  </div>
+</div>
+
+<script>
+let currentDate = new Date();
+let currentMonth = currentDate.getMonth();
+let currentYear = currentDate.getFullYear();
+
+let savedData = JSON.parse(localStorage.getItem('otData')) || {};
+let baseSalary = localStorage.getItem('baseSalary') || '';
+let otHours = localStorage.getItem('otHours') || 2.5;
+
+document.getElementById('baseSalary').value = baseSalary;
+document.getElementById('otHours').value = otHours;
+
+function saveSettings() {
+  localStorage.setItem('baseSalary', document.getElementById('baseSalary').value);
+  localStorage.setItem('otHours', document.getElementById('otHours').value);
+}
+
+document.getElementById('baseSalary').addEventListener('input', saveSettings);
+document.getElementById('otHours').addEventListener('input', saveSettings);
+
+function getPeriodRange(year, month) {
+  // เริ่ม 20 ของเดือนปัจจุบัน → 19 ของเดือนถัดไป
+  const start = new Date(year, month, 20);
+  const end = new Date(year, month + 1, 19);
+  return { start, end };
+}
+
+function renderCalendar() {
+  const calendar = document.getElementById('calendar');
+  const monthLabel = document.getElementById('monthLabel');
+  const otDaysDisplay = document.getElementById('otDays');
+  const otRateDisplay = document.getElementById('otRate');
+  const totalSalaryDisplay = document.getElementById('totalSalary');
+
+  const monthNames = [
+    'มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
+    'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'
+  ];
+
+  const weekdays = ['อา','จ','อ','พ','พฤ','ศ','ส'];
+
+  const { start, end } = getPeriodRange(currentYear, currentMonth);
+  const periodKey = `${start.getFullYear()}-${start.getMonth()+1}`;
+  if (!savedData[periodKey]) savedData[periodKey] = {};
+
+  monthLabel.textContent = `รอบวันที่ 20 ${monthNames[start.getMonth()]} ${start.getFullYear() + 543} 
+  - 19 ${monthNames[end.getMonth()]} ${end.getFullYear() + 543}`;
+
+  calendar.innerHTML = '';
+
+  weekdays.forEach(day => {
+    const wd = document.createElement('div');
+    wd.className = 'weekday';
+    wd.textContent = day;
+    calendar.appendChild(wd);
+  });
+
+  const firstDay = start.getDay();
+  for (let i = 0; i < firstDay; i++) {
+    const blank = document.createElement('div');
+    calendar.appendChild(blank);
+  }
+
+  let current = new Date(start);
+  while (current <= end) {
+    const div = document.createElement('div');
+    const d = current.getDate();
+    const key = `${current.getFullYear()}-${current.getMonth()+1}-${d}`;
+
+    const dayClass = ['day'];
+    if (current.getDay() === 0) dayClass.push('sun');
+    if (current.getDay() === 6) dayClass.push('sat');
+    if (savedData[periodKey][key]) dayClass.push('ot');
+
+    div.className = dayClass.join(' ');
+    div.textContent = d;
+    div.onclick = () => toggleOT(periodKey, key, div);
+    calendar.appendChild(div);
+    current.setDate(d + 1);
+  }
+
+  const base = parseFloat(document.getElementById('baseSalary').value) || 0;
+  const hours = parseFloat(document.getElementById('otHours').value) || 2.5;
+
+  const otRate = (((base / 30) / 8) * 1.5 * hours).toFixed(2);
+  const otDays = Object.values(savedData[periodKey]).filter(Boolean).length;
+  const total = base + (otDays * otRate);
+
+  otDaysDisplay.textContent = otDays;
+  otRateDisplay.textContent = parseFloat(otRate).toLocaleString();
+  totalSalaryDisplay.textContent = parseFloat(total).toLocaleString();
+}
+
+function toggleOT(periodKey, key, div) {
+  savedData[periodKey][key] = !savedData[periodKey][key];
+  div.classList.toggle('ot');
+  localStorage.setItem('otData', JSON.stringify(savedData));
+  renderCalendar();
+}
+
+function changePeriod(offset) {
+  currentMonth += offset;
+  if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+  else if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+  renderCalendar();
+}
+
+window.onload = renderCalendar;
+</script>
+</body>
+</html>
